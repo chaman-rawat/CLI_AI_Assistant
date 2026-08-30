@@ -1,7 +1,8 @@
+import argparse
 import os
 
 from dotenv import load_dotenv
-from openai import OpenAI, AuthenticationError, RateLimitError, OpenAIError
+from openai import AuthenticationError, OpenAI, OpenAIError, RateLimitError
 
 load_dotenv()
 
@@ -55,7 +56,59 @@ def start_repl():
 
 
 def main():
-    start_repl()
+    parser = argparse.ArgumentParser(description="CLI AI Assistant")
+
+    parser.add_argument(
+        "prompt",
+        nargs="?",
+        help="Prompt to send to the assistant",
+    )
+
+    parser.add_argument(
+        "--system",
+        help="Override the default system prompt",
+    )
+
+    parser.add_argument(
+        "--structured",
+        action="store_true",
+        help="Use structured extraction mode",
+    )
+
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Clear conversation history and exit",
+    )
+
+    args = parser.parse_args()
+
+    # Clear mode
+    if args.clear:
+        print("Chosen Clear mode")
+        return
+
+    # Structured extraction mode
+    if args.structured:
+        if not args.prompt:
+            parser.error("--structured requires a prompt")
+
+        print("Chosen Structured output")
+        print("Prompt:", args.prompt)
+        return
+
+    # Decide which system prompt to use
+    if args.system:
+        print("Custom system prompt:", args.system)
+
+    # One-shot mode
+    if args.prompt:
+        print("Chosen One-Shot mode")
+        print("Prompt:", args.prompt)
+        return
+
+    # REPL mode
+    print("Chosen REPL mode")
 
 
 if __name__ == "__main__":
