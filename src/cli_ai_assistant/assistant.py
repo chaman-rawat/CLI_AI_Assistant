@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, AuthenticationError, RateLimitError, OpenAIError
 
 load_dotenv()
 
@@ -9,16 +9,53 @@ client = OpenAI(
     base_url=os.getenv("OPENROUTER_BASE_URL"), api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-system_prompt = {"role": "system", "content": "You are a helpful Assistant."}
-messages = []
+system_prompt = {
+    "role": "system",
+    "content": "You are a helpful Assistant. Be concise.",
+}
+model = os.getenv("MODEL_NAME")
 
 
 def start_repl():
-    pass
+    print("REPL mode started. Type 'quit' or 'exit' to end.\n")
+
+    # Load messages history
+    messages = []
+
+    while True:
+        user_input = input("You: ").strip()
+        if user_input.lower() in ["quit", "exit"]:
+            break
+        elif not user_input:
+            continue
+
+        # Append the user's message to history.
+        messages.append({"role": "user", "content": user_input})
+
+        try:
+            # Send the full history to the API.
+            response = client.chat.completions.create(
+                model=model,
+                messages=[system_prompt] + messages,
+            )
+
+            # Append the model's reply to history.
+            reply = response.choices[0].message.content
+
+            messages.append({"role": "assistant", "content": reply})
+
+            print(f"\nAssistant: {reply}\n")
+
+        except AuthenticationError:
+            print("Error: invalid API key. Check your .env file.")
+        except RateLimitError:
+            print("Error: rate limit hit. Wait a moment and try again.")
+        except OpenAIError as e:
+            print(f"OpenAI API error: {e}")
 
 
 def main():
-    print("Hello from assistant!")
+    start_repl()
 
 
 if __name__ == "__main__":
