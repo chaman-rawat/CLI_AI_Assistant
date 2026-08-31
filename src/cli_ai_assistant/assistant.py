@@ -14,6 +14,7 @@ client = OpenAI(
 model = os.getenv("MODEL_NAME")
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful Assistant. Be concise."
+HISTORY_FILE = "history.json"
 
 
 def one_shot(prompt, system_instruction):
@@ -51,13 +52,15 @@ def start_repl(system_instruction):
     # Load messages history
     messages = []
     try:
-        with open("history.json", "r") as file:
+        with open(HISTORY_FILE, "r") as file:
             messages = json.load(file)
             print("Previous history loaded from the history.json file...")
     except FileNotFoundError:
         print("No saved history found...")
     except json.JSONDecodeError:
-        print("Error: The history.json file is not a valid JSON document.")
+        print(
+            "Error: The history.json file is not a valid JSON document. Continuing with no history."
+        )
 
     print("REPL mode started. Type 'quit' or 'exit' to end.\n")
 
@@ -86,7 +89,7 @@ def start_repl(system_instruction):
             print(f"\nAssistant: {reply}\n")
 
             # Update history with new messages
-            with open("history.json", "w") as file:
+            with open(HISTORY_FILE, "w") as file:
                 json.dump(messages, file, indent=4)
 
         except AuthenticationError:
