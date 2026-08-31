@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 
 from dotenv import load_dotenv
@@ -10,18 +11,55 @@ client = OpenAI(
     base_url=os.getenv("OPENROUTER_BASE_URL"), api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-system_prompt = {
-    "role": "system",
-    "content": "You are a helpful Assistant. Be concise.",
-}
 model = os.getenv("MODEL_NAME")
 
+DEFAULT_SYSTEM_PROMPT = "You are a helpful Assistant. Be concise."
 
-def start_repl():
-    print("REPL mode started. Type 'quit' or 'exit' to end.\n")
+
+def one_shot(prompt, system_instruction):
+    system_prompt = {
+        "role": "system",
+        "content": system_instruction,
+    }
+
+    try:
+        # Send User query with system prompt to API.
+        response = client.chat.completions.create(
+            model=model,
+            messages=[system_prompt, {"role": "user", "content": prompt}],
+        )
+
+        # Assistant reply
+        reply = response.choices[0].message.content
+
+        print(f"\nAssistant: {reply}\n")
+
+    except AuthenticationError:
+        print("Error: invalid API key. Check your .env file.")
+    except RateLimitError:
+        print("Error: rate limit hit. Wait a moment and try again.")
+    except OpenAIError as e:
+        print(f"OpenAI API error: {e}")
+
+
+def start_repl(system_instruction):
+    system_prompt = {
+        "role": "system",
+        "content": system_instruction,
+    }
 
     # Load messages history
     messages = []
+    try:
+        with open("history.json", "r") as file:
+            messages = json.load(file)
+            print("Previous history loaded from the history.json file...")
+    except FileNotFoundError:
+        print("No saved history found...")
+    except json.JSONDecodeError:
+        print("Error: The history.json file is not a valid JSON document.")
+
+    print("REPL mode started. Type 'quit' or 'exit' to end.\n")
 
     while True:
         user_input = input("You: ").strip()
@@ -46,6 +84,10 @@ def start_repl():
             messages.append({"role": "assistant", "content": reply})
 
             print(f"\nAssistant: {reply}\n")
+
+            # Update history with new messages
+            with open("history.json", "w") as file:
+                json.dump(messages, file, indent=4)
 
         except AuthenticationError:
             print("Error: invalid API key. Check your .env file.")
@@ -101,14 +143,18 @@ def main():
     if args.system:
         print("Custom system prompt:", args.system)
 
+    system_instruction = args.system or DEFAULT_SYSTEM_PROMPT
+
     # One-shot mode
     if args.prompt:
         print("Chosen One-Shot mode")
         print("Prompt:", args.prompt)
+        one_shot(args.prompt, system_instruction)
         return
 
     # REPL mode
     print("Chosen REPL mode")
+    start_repl(system_instruction)
 
 
 if __name__ == "__main__":
