@@ -9,9 +9,16 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-client = OpenAI(
-    base_url=os.getenv("OPENROUTER_BASE_URL"), api_key=os.getenv("OPENROUTER_API_KEY")
-)
+api_key = os.getenv("OPENROUTER_API_KEY")
+base_url = os.getenv("OPENROUTER_BASE_URL")
+
+if not api_key:
+    raise RuntimeError("OPENROUTER_API_KEY is not set")
+
+if not base_url:
+    raise RuntimeError("OPENROUTER_BASE_URL is not set")
+
+client = OpenAI(base_url=base_url, api_key=api_key)
 
 model = os.getenv("MODEL_NAME", "gpt-4o-mini")
 
