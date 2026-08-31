@@ -197,6 +197,8 @@ def main():
 
     # Structured extraction mode
     if args.structured:
+        if args.prompt is None:
+            parser.error("--structured requires a prompt")
         extract_structured_output(args.prompt)
         return
 
