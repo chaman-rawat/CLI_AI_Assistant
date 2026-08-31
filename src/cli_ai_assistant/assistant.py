@@ -17,6 +17,16 @@ DEFAULT_SYSTEM_PROMPT = "You are a helpful Assistant. Be concise."
 HISTORY_FILE = "history.json"
 
 
+def clear_history():
+    user_input = input("Are you sure you want clear history (Y/N): ")
+    if user_input.strip().lower() in ["y", "yes"]:
+        with open(HISTORY_FILE, "w") as file:
+            json.dump([], file)
+            print("History successfully cleared!")
+    else:
+        print("Skipping clearing history.")
+
+
 def one_shot(prompt, system_instruction):
     system_prompt = {
         "role": "system",
@@ -131,6 +141,7 @@ def main():
     # Clear mode
     if args.clear:
         print("Chosen Clear mode")
+        clear_history()
         return
 
     # Structured extraction mode
