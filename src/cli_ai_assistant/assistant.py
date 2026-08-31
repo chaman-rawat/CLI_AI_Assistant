@@ -1,9 +1,11 @@
 import argparse
 import json
 import os
+from typing import Literal
 
 from dotenv import load_dotenv
 from openai import AuthenticationError, OpenAI, OpenAIError, RateLimitError
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -11,20 +13,60 @@ client = OpenAI(
     base_url=os.getenv("OPENROUTER_BASE_URL"), api_key=os.getenv("OPENROUTER_API_KEY")
 )
 
-model = os.getenv("MODEL_NAME")
+model = os.getenv("MODEL_NAME", "gpt-4o-mini")
 
 DEFAULT_SYSTEM_PROMPT = "You are a helpful Assistant. Be concise."
 HISTORY_FILE = "history.json"
 
 
+class TextSummary(BaseModel):
+    main_topic: str
+    key_entities: list[str]
+    sentiment: Literal["positive", "neutral", "negative"]
+    one_line_summary: str
+
+
 def clear_history():
     user_input = input("Are you sure you want clear history (Y/N): ")
     if user_input.strip().lower() in ["y", "yes"]:
-        with open(HISTORY_FILE, "w") as file:
-            json.dump([], file)
-            print("History successfully cleared!")
+        if os.path.exists(HISTORY_FILE):
+            os.remove(HISTORY_FILE)
+            print("History deleted successfully.")
+        else:
+            print("History does not exist.")
     else:
         print("Skipping clearing history.")
+
+
+def extract_structured_output(text):
+    try:
+        response = client.chat.completions.parse(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": ("Extract structured information from the given text."),
+                },
+                {
+                    "role": "user",
+                    "content": text,
+                },
+            ],
+            response_format=TextSummary,
+        )
+
+        parsed_output = response.choices[0].message.parsed
+        print("Main topic:", parsed_output.main_topic)
+        print("Key entities:", parsed_output.key_entities)
+        print("Sentiment:", parsed_output.sentiment)
+        print("One line summary:", parsed_output.one_line_summary)
+
+    except AuthenticationError:
+        print("Error: invalid API key. Check your .env file.")
+    except RateLimitError:
+        print("Error: rate limit hit. Wait a moment and try again.")
+    except OpenAIError as e:
+        print(f"OpenAI API error: {e}")
 
 
 def one_shot(prompt, system_instruction):
@@ -88,7 +130,7 @@ def start_repl(system_instruction):
             # Send the full history to the API.
             response = client.chat.completions.create(
                 model=model,
-                messages=[system_prompt] + messages,
+                messages=[system_prompt] + messages[-40:],
             )
 
             # Append the model's reply to history.
@@ -103,10 +145,13 @@ def start_repl(system_instruction):
                 json.dump(messages, file, indent=4)
 
         except AuthenticationError:
+            messages.pop()
             print("Error: invalid API key. Check your .env file.")
         except RateLimitError:
+            messages.pop()
             print("Error: rate limit hit. Wait a moment and try again.")
         except OpenAIError as e:
+            messages.pop()
             print(f"OpenAI API error: {e}")
 
 
@@ -140,34 +185,30 @@ def main():
 
     # Clear mode
     if args.clear:
-        print("Chosen Clear mode")
         clear_history()
         return
 
+    # Only strip prompt if one was actually provided
+    if args.prompt is not None:
+        args.prompt = args.prompt.strip()
+
+        if not args.prompt:
+            parser.error("prompt cannot be empty or whitespace only")
+
     # Structured extraction mode
     if args.structured:
-        if not args.prompt:
-            parser.error("--structured requires a prompt")
-
-        print("Chosen Structured output")
-        print("Prompt:", args.prompt)
+        extract_structured_output(args.prompt)
         return
 
     # Decide which system prompt to use
-    if args.system:
-        print("Custom system prompt:", args.system)
-
     system_instruction = args.system or DEFAULT_SYSTEM_PROMPT
 
     # One-shot mode
     if args.prompt:
-        print("Chosen One-Shot mode")
-        print("Prompt:", args.prompt)
         one_shot(args.prompt, system_instruction)
         return
 
     # REPL mode
-    print("Chosen REPL mode")
     start_repl(system_instruction)
 
 
