@@ -63,6 +63,9 @@ def extract_structured_output(text):
         )
 
         parsed_output = response.choices[0].message.parsed
+        if parsed_output is None:
+            print("Error: model did not return valid structured output.")
+            return
         print("Main topic:", parsed_output.main_topic)
         print("Key entities:", parsed_output.key_entities)
         print("Sentiment:", parsed_output.sentiment)
@@ -117,14 +120,18 @@ def start_repl(system_instruction):
     except FileNotFoundError:
         print("No saved history found...")
     except json.JSONDecodeError:
-        print(
-            "Error: The history.json file is not a valid JSON document. Continuing with no history."
-        )
+        print("History file contains invalid JSON. Starting with empty history.")
+    except OSError as e:
+        print(f"Could not read history: {e}")
 
     print("REPL mode started. Type 'quit' or 'exit' to end.\n")
 
     while True:
-        user_input = input("You: ").strip()
+        try:
+            user_input = input("You: ").strip()
+        except KeyboardInterrupt, EOFError:
+            print("\nGoodbye!")
+            break
         if user_input.lower() in ["quit", "exit"]:
             break
         elif not user_input:
@@ -148,8 +155,11 @@ def start_repl(system_instruction):
             print(f"\nAssistant: {reply}\n")
 
             # Update history with new messages
-            with open(HISTORY_FILE, "w") as file:
-                json.dump(messages, file, indent=4)
+            try:
+                with open(HISTORY_FILE, "w") as file:
+                    json.dump(messages, file, indent=4)
+            except OSError as e:
+                print(f"Could not save history: {e}")
 
         except AuthenticationError:
             messages.pop()
@@ -213,7 +223,7 @@ def main():
     system_instruction = args.system or DEFAULT_SYSTEM_PROMPT
 
     # One-shot mode
-    if args.prompt:
+    if args.prompt is not None:
         one_shot(args.prompt, system_instruction)
         return
 
